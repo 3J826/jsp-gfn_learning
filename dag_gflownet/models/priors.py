@@ -28,7 +28,7 @@ class BasePrior(ABC):
 
 class UniformPrior(BasePrior):
     def __call__(self, masks):  # 给出了抽象方法__call__的实现
-        return jnp.array(0.)
+        return jnp.array(0.)  # 返回一个标量0=log P(G),即P(G)=1,这是未标准化的概率
 
 
 class ErdosRenyiPrior(BasePrior):

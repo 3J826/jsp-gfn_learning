@@ -112,29 +112,43 @@ def sub_trajectory_balance_loss(
 
 
 def log_policy(logits, stop, masks):
-    masks = masks.reshape(logits.shape)
-    masked_logits = mask_logits(logits, masks)
-    can_continue = jnp.any(masks, axis=-1, keepdims=True)
+    """logits-(batch_size, num_variables*num_variables),
+       stop-(batch_size, 1),
+       masks-(batch_size, num_variables, num_variables)
+    """
+    masks = masks.reshape(logits.shape) # (batch_size, num_variables*num_variables)
+    masked_logits = mask_logits(logits, masks)  # 对logits进行掩码操作，保留logits中掩码为真的元素，替换logits中掩码为假的元素为MASKED_VALUE
+    can_continue = jnp.any(masks, axis=-1, keepdims=True)  # 判断能否继续加边，若masks的第二个维度中至少有一个真元素，则可以
 
-    logp_continue = (nn.log_sigmoid(-stop)
-        + nn.log_softmax(masked_logits, axis=-1))
-    logp_stop = nn.log_sigmoid(stop)
+    # 用jax的神经网络中的激活函数计算继续加边的概率和停止加边的概率 的对数
+    logp_continue = (nn.log_sigmoid(-stop)  # sigmoid函数的对数在-stop上的值
+        + nn.log_softmax(masked_logits, axis=-1))  # softmax函数的对数在masked_logits上的值，masked_logits形状与logits相同
+    logp_stop = nn.log_sigmoid(stop)  # sigmoid函数的对数在stop上的值
 
     # In case there is no valid action other than stop
-    logp_continue = jnp.where(can_continue, logp_continue, MASKED_VALUE)
+    logp_continue = jnp.where(can_continue, logp_continue, MASKED_VALUE)  #  保留logp_continue中can_continue对应位置为真的元素，替换logp_continue中can_continue对应位置为假的元素为MASKED_VALUE
     logp_stop = logp_stop * can_continue
 
-    return jnp.concatenate((logp_continue, logp_stop), axis=-1)
+    return jnp.concatenate((logp_continue, logp_stop), axis=-1)  # 形状为(batch_size, num_variables*num_variables+1)
 
-
+# 均匀策略-每张图加边(不加边)的概率相同
 def uniform_log_policy(masks):
-    masks = masks.reshape(masks.shape[0], -1)
-    num_edges = jnp.sum(masks, axis=-1, keepdims=True)
+    
+    # 重塑masks的形状为(batch_size, num_variables*num_variables)
+    masks = masks.reshape(masks.shape[0], -1)  # (batch_size, num_variables*num_variables)
+    
+    # batch中每张图的边数
+    # keepdims=True表示保持维度不变，即不压缩维度
+    num_edges = jnp.sum(masks, axis=-1, keepdims=True)  # 将每张图的masks中表示真的元素相加，结果如[[3],[2],[1],[4],[2],[6],[3],[8]]
 
-    logp_stop = -jnp.log1p(num_edges)
-    logp_continue = mask_logits(logp_stop, masks)
+    # 计算每张图的logp_stop
+    logp_stop = -jnp.log1p(num_edges)  # 计算num_edges + 1的自然对数的负数，形状为(batch_size, 1)
+    
+    # 计算每张图的logp_continue
+    # 结果的形状为(batch_size, num_variables*num_variables)
+    logp_continue = mask_logits(logp_stop, masks)  # 将masks中每一行的真值换成对应行logp_stop的值，该行其他值换成MASKED_VALUE
 
-    return jnp.concatenate((logp_continue, logp_stop), axis=-1)
+    return jnp.concatenate((logp_continue, logp_stop), axis=-1)  # (batch_size, num_variables*num_variables+1)
 
 
 def posterior_estimate(

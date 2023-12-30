@@ -43,38 +43,49 @@ class GFlowNetDAGEnv(gym.vector.VectorEnv):
         action_space = Discrete(self.num_variables ** 2 + 1)  # 行动空间Discrete(26)
         super().__init__(num_envs, observation_space, action_space)  # 初始化父类gym.vector.VectorEnv
 
-    def reset(self):
-        shape = (self.num_envs, self.num_variables, self.num_variables)
-        closure_T = np.eye(self.num_variables, dtype=np.bool_)  # 用处是？
-        self._closure_T = np.tile(closure_T, (self.num_envs, 1, 1))
+    def reset(self):  # 一个环境下一张图
+        shape = (self.num_envs, self.num_variables, self.num_variables)  # (8,5,5)
+        closure_T = np.eye(self.num_variables, dtype=np.bool_)  # 对角线为True，其他地方均为False的num_vars维方阵
+        self._closure_T = np.tile(closure_T, (self.num_envs, 1, 1))  # 沿第一个维度将closure_T重复self.num_envs次
         self._state = {
-            'adjacency': np.zeros(shape, dtype=np.int_),
-            'mask': 1 - self._closure_T,
-            'num_edges': np.zeros((self.num_envs,), dtype=np.int_),
-            'score': np.zeros((self.num_envs,), dtype=np.float_),
-            'order': np.full(shape, -1, dtype=np.int_)
+            'adjacency': np.zeros(shape, dtype=np.int_),  # 每个环境的邻接矩阵
+            'mask': 1 - self._closure_T,  # 每个环境的掩码
+            'num_edges': np.zeros((self.num_envs,), dtype=np.int_),  # 每个环境中图的边数
+            'score': np.zeros((self.num_envs,), dtype=np.float_),  # (0,0,0,0,0,0,0,0),每个环境的得分，什么得分？
+            'order': np.full(shape, -1, dtype=np.int_)  # 把shape中每个元素换成-1
         }
         return deepcopy(self._state)
 
     def step(self, actions):
-        sources, targets = divmod(actions, self.num_variables)
-        dones = (sources == self.num_variables)
-        sources, targets = sources[~dones], targets[~dones]
+        
+        # 获取每个action对应的起始节点和终止节点——这表示actions的实际意义
+        # 起始节点为商，目标节点为余数，二者形状都为(8,)，分别对应每个环境下的图的下一步操作——应该添加哪条边
+        sources, targets = divmod(actions, self.num_variables)  
+        
+        # 创建布尔向量，形状与actions相同——(8,)
+        # sources==self.num_variables为True的位置处的元素为True，该suorce对应的actions=25，表示stop行动
+        # 其余地方为False，表示相应的图还可以继续加边
+        dones = (sources == self.num_variables)  
+        
+        # 过滤掉下一步行动为stop的图，留下一步待加边的图
+        sources, targets = sources[~dones], targets[~dones]  
 
         # Make sure that all the actions are valid
+        # 起点和终点都只有对应mask中的真值才表示相应的行动有效
         if not np.all(self._state['mask'][~dones, sources, targets]):
             raise ValueError('Some actions are invalid: either the edge to be '
                              'added is already in the DAG, or adding this edge '
                              'would lead to a cycle.')
 
         # Update the adjacency matrices
-        self._state['adjacency'][~dones, sources, targets] = 1
+        # 将actions中有效的行动对应的adjacency矩阵元素置为1,表示向对应图中加一条边
+        self._state['adjacency'][~dones, sources, targets] = 1  
         self._state['adjacency'][dones] = 0
 
-        # Update transitive closure of transpose
+        # Update transitive closure of transpose-用于更新mask的
         source_rows = np.expand_dims(self._closure_T[~dones, sources, :], axis=1)
         target_cols = np.expand_dims(self._closure_T[~dones, :, targets], axis=2)
-        self._closure_T[~dones] |= np.logical_and(source_rows, target_cols)  # Outer product
+        self._closure_T[~dones] |= np.logical_and(source_rows, target_cols)  # Outer product——先将source_rows和target_cols进行点对点的逻辑与运算，再将运算结果与self._closure_T[~dones]做或运算
         self._closure_T[dones] = np.eye(self.num_variables, dtype=np.bool_)
 
         # Update the masks
@@ -84,7 +95,7 @@ class GFlowNetDAGEnv(gym.vector.VectorEnv):
         num_parents = np.sum(self._state['adjacency'], axis=1, keepdims=True)
         self._state['mask'] *= (num_parents < self.max_parents)
 
-        # Update the order
+        # Update the order——添加边的顺序
         self._state['order'][~dones, sources, targets] = self._state['num_edges'][~dones]
         self._state['order'][dones] = -1
 

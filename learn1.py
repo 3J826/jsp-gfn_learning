@@ -352,6 +352,7 @@
 # print(Discrete(3))
 # print(Discrete(3).sample())
 
+
 #------------------------------------------np.tile---------------------------------
 # import numpy as np
 # # Assume closure_T is a 2D array for the sake of illustration
@@ -379,12 +380,12 @@
 #         transition_begin=3,  # prefill默认为1000
 #     ))
 
-
 # with trange(3 + 6, desc='Training') as pbar:
 #         for iteration in pbar:
 #             print(iteration)
 #             epsilon = exploration_schedule(iteration)
 #             print(epsilon)
+  
             
 #-------------------------------np.nonzero()---------------------------------
 # adjacency = np.zeros((8,5,5),dtype = np.int_)
@@ -398,6 +399,7 @@
 # # print(np.ones_like(senders))
 # print(senders + counts * 6)
 
+
 #---------------------------------nearest_bigger_power_of_two---------------------------
 # def _nearest_bigger_power_of_two(x):
 #     y = 2
@@ -406,70 +408,314 @@
 #     return y
 # print(_nearest_bigger_power_of_two(3))
 
+
 #----------------------------------------------------------------
 # import numpy as np
 # a = np.array([1,2,3])
 # print(a.sum())
 
+
 #---------------------------------jraph.pad_with_graphs---------------------------
-import jraph
+# import jraph
+# import numpy as np
+
+# num_graphs, num_variables = [4, 3]
+# n_node = np.full((num_graphs,), num_variables, dtype=np.int_)
+# print('n_node:',n_node)
+# adjacencies = np.array([[[0,1,0],[0,0,1],[0,0,0]], [[0,1,1],[0,0,0],[0,1,0]], [[0,1,1],[0,0,1],[0,0,0]], [[0,0,1],[1,0,1],[0,0,0]]])
+# counts, senders, receivers = np.nonzero(adjacencies)
+# print('counts:',counts)
+# print('senders:',senders)
+# print('receivers:',receivers)
+# n_edge = np.bincount(counts, minlength=num_graphs)
+# print('n_edge:',n_edge)
+
+# # Node features: node indices
+# nodes = np.tile(np.arange(num_variables), num_graphs)
+# # print('nodes:',nodes)
+# edges = np.ones_like(senders)  # 作用是啥？
+# # print('edges:',edges)
+
+# graphs_tuple =  jraph.GraphsTuple(
+#     nodes=nodes,
+#     edges=edges,
+#     senders=senders + counts * num_variables,  # 为啥这样做？
+#     receivers=receivers + counts * num_variables,
+#     globals=None,
+#     n_node=n_node,
+#     n_edge=n_edge,
+# )
+# print('gt:',graphs_tuple)
+# print('senders:', graphs_tuple.senders)
+# print('receivers:', graphs_tuple.receivers)
+
+# def _nearest_bigger_power_of_two(x):
+#     y = 2
+#     while y < x:
+#         y *= 2
+#     return y
+
+# def pad_graph_to_nearest_power_of_two(graphs_tuple):
+#     # Adapted from https://github.com/deepmind/jraph/blob/master/jraph/ogb_examples/train.py
+#     # Add 1 since we need at least one padding node for pad_with_graphs.
+#     pad_nodes_to = _nearest_bigger_power_of_two(np.sum(graphs_tuple.n_node)) + 1
+#     print('pad_nodes_to:',pad_nodes_to)
+#     pad_edges_to = _nearest_bigger_power_of_two(np.sum(graphs_tuple.n_edge))
+#     print('pad_edges_to:',pad_edges_to)
+
+#     # Add 1 since we need at least one padding graph for pad_with_graphs.
+#     # We do not pad to nearest power of two because the batch size is fixed.
+#     pad_graphs_to = graphs_tuple.n_node.shape[0] + 1
+#     return jraph.pad_with_graphs(
+#         graphs_tuple, pad_nodes_to, pad_edges_to, pad_graphs_to)
+
+
+# graphs_tuple = pad_graph_to_nearest_power_of_two(graphs_tuple)
+# print('gt_pad:',graphs_tuple)
+
+
+#-------------------------------------------jnp.sum-----------------------------------
+# import jax.numpy as jnp
+# # Example masks array (2D)
+# masks = jnp.array([[1, 0, 1], [0, 1, 1]])
+# # Sum along the last axis (axis=-1)
+# num_edges = jnp.sum(masks, axis=-1, keepdims=True)
+# num_edges1 = jnp.sum(masks, axis=-1, keepdims=False)
+# # Display the result
+# print("Original masks:")
+# print(masks.shape)
+# print("Number of edges in each row:")
+# print(num_edges)
+# print(num_edges.shape)
+# print('num_edges1:',num_edges1)
+# print('num_edges1.shape',num_edges1.shape)
+
+
+#---------------------------------------------masks----------------------------
+# import numpy as np
+# import jax.numpy as jnp
+# from jax import random
+
+# closure_T = np.eye(5, dtype=np.bool_)  
+# _closure_T = np.tile(closure_T, (8, 1, 1))
+# masks = 1 -  _closure_T
+# # print('masks:',masks)
+# masks1 = masks.astype(jnp.float32)
+# # print('masks1:',masks1)
+# masks2 = masks1.reshape(masks.shape[0], -1)
+# # print('masks2:',masks2)
+# num_edges = jnp.sum(masks2, axis=-1, keepdims=True)
+# # print('num_edges:',num_edges)
+# logp_stop = -jnp.log1p(num_edges)
+# # print('logp_stop', logp_stop)
+
+# MASKED_VALUE = -jnp.inf
+# def mask_logits(logits, masks):
+#     return jnp.where(masks, logits, MASKED_VALUE)
+# logp_continue = mask_logits(logp_stop, masks2)
+# # print('logp_continue:',logp_continue)
+# log_uniform = jnp.concatenate((logp_continue, logp_stop), axis=-1)
+# # print(log_uniform)
+
+
+#--------------------jnp.cumsum----------------------------------
+# import jax.numpy as jnp
+# import numpy as np
+# # Example log_uniform array
+# log_uniform = jnp.array([[-np.inf, 0.2, 0.3],
+#                          [-np.inf, 0.5, 0.6]])
+
+# # Calculate cumulative sum along axis 1
+# cum_probas = jnp.cumsum(log_uniform, axis=1)
+# print("\nCumulative sum along axis 1:")
+# print(cum_probas)
+
+
+#------------------------jnp.take_along_axis------------------------------
+# import jax.numpy as jnp
+# # Example array
+# arr = jnp.array([[1, 2, 3, 4],
+#                  [4, 5, 6, 7],
+#                  [7, 8, 9, 10]])
+# # Example indices along axis 1
+# indices = jnp.array([[0,1,1,0], [2,1,2,1], [1,0,0,1]])
+# # Use jnp.take_along_axis to extract values
+# # result1 = jnp.take_along_axis(arr, indices, axis=1)
+# # # Display the result
+# # print("\nResult1:")
+# # print(result1)
+# result2 = jnp.take_along_axis(arr, indices, axis=0)
+# print("\nResult2:")
+# print(result2)
+
+
+#------------------------jnp.sum(cum_probas < uniform, axis=1, keepdims=True)---------------
+# import jax.numpy as jnp
+# from jax import random
+# key = random.PRNGKey(0)
+# probas = random.uniform(key, shape=(3,4))
+# print('probas:',probas)
+# uniform = random.uniform(key, shape=(probas.shape[0], 1))
+# print('uniform:',uniform)
+# cum_probas = jnp.cumsum(probas, axis=1)
+# print('cum_probas:',cum_probas)
+# samples = jnp.sum(cum_probas < uniform, axis=1, keepdims=True)
+# print('samples:',samples)
+
+
+#------------------------------jnp.squeeze-----------------------------------
+# import jax.numpy as jnp
+# samples = jnp.array([[8],[1],[20],[7],[13],[6]])
+# a = jnp.squeeze(samples, axis=1)
+# print(a)
+
+
+#-----------------------------np.all(self._state['mask'][~dones, sources, targets])--------
 import numpy as np
+# mask = np.array([[[0, 1, 1],[1, 0, 1],[1, 1, 0]], [[0, 1, 1],[1, 0, 1],[0, 0, 1]]])
+# dones = np.array([False, True])
+# print(~dones)
+# sources = np.array([0,0])
+# targets = np.array([2,2])
+# print(mask[~dones, sources, targets])
+# if not np.all(mask[~dones, sources, targets]):
+#     # Code block when condition is True
+#     print("At least one selected element is False.")
+# else:
+#     # Code block when condition is False
+#     print("All selected elements are True.")
 
-num_graphs, num_variables = [4, 3]
-n_node = np.full((num_graphs,), num_variables, dtype=np.int_)
-print('n_node:',n_node)
-adjacencies = np.array([[[0,1,0],[0,0,1],[0,0,0]], [[0,1,1],[0,0,0],[0,1,0]], [[0,1,1],[0,0,1],[0,0,0]], [[0,0,1],[1,0,1],[0,0,0]]])
-counts, senders, receivers = np.nonzero(adjacencies)
-print('counts:',counts)
-print('senders:',senders)
-print('receivers:',receivers)
-n_edge = np.bincount(counts, minlength=num_graphs)
-print('n_edge:',n_edge)
+# Hypothetical values
+# _closure_T = np.array([
+#     [[True, False, False],
+#      [False, True, False],
+#      [True, False, True]],
+    
+#     [[True, False, False],
+#      [False, True, True],
+#      [False, False, True]]
+# ])
 
-# Node features: node indices
-nodes = np.tile(np.arange(num_variables), num_graphs)
-# print('nodes:',nodes)
-edges = np.ones_like(senders)  # 作用是啥？
-# print('edges:',edges)
+# dones = np.array([False, False])  # Example dones array
+# sources = np.array([0,2])       # Example sources array
+# targets = np.array([1,2]) 
 
-graphs_tuple =  jraph.GraphsTuple(
-    nodes=nodes,
-    edges=edges,
-    senders=senders + counts * num_variables,  # 为啥这样做？
-    receivers=receivers + counts * num_variables,
-    globals=None,
-    n_node=n_node,
-    n_edge=n_edge,
-)
-print('gt:',graphs_tuple)
-print('senders:', graphs_tuple.senders)
-print('receivers:', graphs_tuple.receivers)
+# source_rows = np.expand_dims(_closure_T[~dones, sources, :], axis=1)
+# print(_closure_T[~dones, sources, :])
+# print('source_rows:',source_rows)
+# # source_rows1 = np.expand_dims(_closure_T[~dones, :, sources], axis=1)
+# # print(_closure_T[~dones, :, sources])
+# # print('source_rows1:',source_rows1)
+# target_cols = np.expand_dims(_closure_T[~dones, :, targets], axis=2)
+# print(_closure_T[~dones, :, targets])
+# print('target_cols:',target_cols)
+# a = np.logical_and(source_rows, target_cols)
+# print('a',a)
+# _closure_T[~dones] |= np.logical_and(source_rows, target_cols)
+# print('r:',_closure_T[~dones])
 
-def _nearest_bigger_power_of_two(x):
-    y = 2
-    while y < x:
-        y *= 2
-    return y
+# source_rows = np.array([[[True, False, False]], [[False, False, True]]])
+# target_cols = np.array([[[False], [True], [False]], [[False], [True], [True]]])
 
-def pad_graph_to_nearest_power_of_two(graphs_tuple):
-    # Adapted from https://github.com/deepmind/jraph/blob/master/jraph/ogb_examples/train.py
-    # Add 1 since we need at least one padding node for pad_with_graphs.
-    pad_nodes_to = _nearest_bigger_power_of_two(np.sum(graphs_tuple.n_node)) + 1
-    print('pad_nodes_to:',pad_nodes_to)
-    pad_edges_to = _nearest_bigger_power_of_two(np.sum(graphs_tuple.n_edge))
-    print('pad_edges_to:',pad_edges_to)
+# result = np.logical_and(source_rows, target_cols)
 
-    # Add 1 since we need at least one padding graph for pad_with_graphs.
-    # We do not pad to nearest power of two because the batch size is fixed.
-    pad_graphs_to = graphs_tuple.n_node.shape[0] + 1
-    return jraph.pad_with_graphs(
-        graphs_tuple, pad_nodes_to, pad_edges_to, pad_graphs_to)
+# # Display the breakdown
+# for i in range(source_rows.shape[0]):
+#     for j in range(source_rows.shape[1]):
+#         for k in range(source_rows.shape[2]):
+#             element_source_rows = source_rows[i, j, k]
+#             element_target_cols = target_cols[i, k, j]
+#             element_result = result[i, j, k]
+#             print(f"source_rows[{i}, {j}, {k}] = {element_source_rows}, "
+#                   f"target_cols[{i}, {j}, {k}] = {element_target_cols}, "
+#                   f"result[{i}, {j}, {k}] = {element_result}")
+
+#-------------------------------------------------------------------------------
+# a = np.array([[1, 2, 3], [4, 5, 6], [7, 8, 9],[10, 11, 12]])
+# print(np.sum(a,axis=1,keepdims=True))
+# dones = np.array([False, True, True, False])
+# print(np.sum(~dones))
+# a = np.arange(0, 3) % 1000
+# print(a)
+
+#--------------------------------optax.linear_schedule---------------------------------
+# import optax
+# num_steps = 200
+# linear_schedule = optax.linear_schedule(init_value=-1.0, end_value=1.0, transition_steps=num_steps, transition_begin=50)
+# print(linear_schedule(0))
+# print(linear_schedule(45))
+# print(linear_schedule(49))
+# print(linear_schedule(50))
+# print(linear_schedule(51))
+# print(linear_schedule(61))
+# print(linear_schedule(250))
+# print(linear_schedule(251))
+# print(linear_schedule(260))
+
+#-----------------------np.oneslike-----------------------------------
+# senders = [0,1,0,0,2,0,0,1,0,1,1]
+# print(np.ones_like(senders))
+
+#-----------------------------------jnp.cumsum--------------------------
+# import jax.numpy as jnp
+# probas = jnp.array([[0.1],[0.1],[0.1],[0.1],[0.1],[0.1],[0.1],[0.1]])
+# cum_probas = jnp.cumsum(probas, axis=0)
+# # print(probas.shape)
+# print(cum_probas)
+
+# num_edges = jnp.array([[3],[2],[1],[4],[2],[6],[3],[8]])
+# print(-jnp.log1p(num_edges))
 
 
-graphs_tuple = pad_graph_to_nearest_power_of_two(graphs_tuple)
-print('gt_pad:',graphs_tuple)
+#-----------------------------------uniform_log_policy--------------------------------
+# import jax.numpy as jnp
+# # Assuming masks is a boolean array
+# masks = jnp.array([[True, True, True, False, False, True, True, True, False],
+#                    [True, True, False, False, False, True, False, True, False],
+#                    [False, True, True, True, False, False, True, True, False],
+#                    [False, False, False, False, False, False, False, False, False]])
+
+# # Calculate the number of edges along axis -1 (last axis)
+# num_edges = jnp.sum(masks, axis=-1, keepdims=True)
+
+# # Compute log probability of stopping
+# logp_stop = -jnp.log1p(num_edges)
+
+# # Compute log probability of continuing (masking based on the original masks)
+# logp_continue = jnp.where(masks, logp_stop, -jnp.inf)
+
+# # Display the results
+# print("Number of Edges:\n", num_edges)
+# print("Log Probability of Stopping:\n", logp_stop)
+# print("Log Probability of Continuing:\n", logp_continue)
 
 
+#-----------------------sample actions-----------------------
+import jax
+import jax.numpy as jnp
+from jax import random
 
+# Assuming probas is a 2D array of probabilities
+probas = jnp.array([[0.1, 0.2, 0.3, 0.1, 0.1, 0.05, 0.05, 0.05, 0.05],
+                    [0.2, 0.1, 0.1, 0.1, 0.1, 0.05, 0.05, 0.2, 0.1],
+                    [0.05, 0.1, 0.1, 0.2, 0.05, 0.05, 0.1, 0.1, 0.25],
+                    [0.05, 0.05, 0.05, 0.05, 0.1, 0.1, 0.2, 0.2, 0.2]])
 
+# Initialize a random key
+key = random.PRNGKey(42)
+
+# Generate uniform random numbers
+uniform = random.uniform(key, shape=(probas.shape[0], 1))
+
+# Calculate cumulative probabilities
+cum_probas = jnp.cumsum(probas, axis=1)
+
+# Sample based on cumulative probabilities
+samples = jnp.sum(cum_probas < uniform, axis=1, keepdims=True)
+
+# Display the results
+print("Probas:\n", probas)
+print("Uniform Random Numbers:\n", uniform)
+print("Cumulative Probabilities:\n", cum_probas)
+print("Samples:\n", samples)
 

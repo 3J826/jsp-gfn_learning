@@ -189,10 +189,11 @@ class BaseModel(ABC):
         """
         pass
 
-    def log_joint(self, masks, thetas, dataset, normalization):  # 计算联合概率分布P(D,G,theta)的对数
-        return (self.log_likelihood(dataset, thetas, masks) * normalization
-            + self.log_prior_theta(thetas, masks)
-            + self.prior_graph(masks))
+    # log P(D,G,theta)的计算函数
+    def log_joint(self, masks, thetas, dataset, normalization):  
+        return (self.log_likelihood(dataset, thetas, masks) * normalization  # log P(D | theta, G)
+            + self.log_prior_theta(thetas, masks)  # log P(theta | G)
+            + self.prior_graph(masks))  # log P(G)
 
 
 class GaussianModel(BaseModel):
@@ -235,9 +236,10 @@ class GaussianModel(BaseModel):
         return jnp.sum(log_likelihood * (1. - dataset.interventions))
 
     def log_prior_theta(self, thetas, masks):
+        """thetas: 形状为(1, batch_size, num_vars, num_vars)"""
         @partial(jax.vmap, in_axes=(0, 0))
         def _log_prior(theta, mask):
-            diff = (theta - self.prior.loc) / self.prior.scale  # (theta - mu / sigma
+            diff = (theta - self.prior.loc) / self.prior.scale  # 标准化
             return -0.5 * jnp.sum(mask * (diff ** 2
                 + _LOG_2PI + 2 * jnp.log(self.prior.scale)))
         return jnp.sum(_log_prior(thetas, masks))

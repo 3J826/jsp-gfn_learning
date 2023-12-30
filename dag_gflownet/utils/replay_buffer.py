@@ -33,27 +33,33 @@ class ReplayBuffer:
     def add(
             self,
             observations,
-            actions,
-            is_exploration,
+            actions,  # (8, )
+            is_exploration,  # (8,)，每个元素表示相应环境下的动作是否为探索性的
             next_observations,
             delta_scores,
-            dones,
+            dones,  # (8,)布尔向量
             prev_indices=None
         ):
-        indices = np.full((dones.shape[0],), -1, dtype=np.int_)
+        
+        indices = np.full((dones.shape[0],), -1, dtype=np.int_)  # (-1,-1,-1,-1,-1,-1,-1,-1)
+        
+        # 判断是否num_envs个并行图都完成了，若是则直接返回Indices
         if np.all(dones):
             return indices
 
-        num_samples = np.sum(~dones)
-        add_idx = np.arange(self._index, self._index + num_samples) % self.capacity
+        # 根据dones更新replaybuffer及各并行环境中图的索引
+        # 例如当前已完成0，1，2号图，剩下的4-7号图的索引会更新为0，1，2，3
+        num_samples = np.sum(~dones)  # 计数下一步继续加边的图数
+        add_idx = np.arange(self._index, self._index + num_samples) % self.capacity  # 计算arange中各个元素除以capacity的余数,(num_samples,)
         self._is_full |= (self._index + num_samples >= self.capacity)
-        self._index = (self._index + num_samples) % self.capacity
-        indices[~dones] = add_idx
+        self._index = (self._index + num_samples) % self.capacity  # 更新self._index
+        indices[~dones] = add_idx  # 将未完成的图的索引更新为add_idx
 
+        # 更新data-只保留未完成的图之数据
         data = {
-            'adjacency': self.encode(observations['adjacency'][~dones]),
-            'num_edges': observations['num_edges'][~dones],
-            'actions': actions[~dones],
+            'adjacency': self.encode(observations['adjacency'][~dones]),  # 添加并行环境中下一步继续加边的图的邻接矩阵
+            'num_edges': observations['num_edges'][~dones],  # 添加并行环境中下一步继续加边的图的边数
+            'actions': actions[~dones],  #  添加并行环境中下一步继续加边的图的动作
             'delta_scores': delta_scores[~dones],
             'mask': self.encode(observations['mask'][~dones]),
             'next_adjacency': self.encode(next_observations['adjacency'][~dones]),
@@ -64,16 +70,23 @@ class ReplayBuffer:
             'scores': observations['score'][~dones],
         }
 
+        # 设置新数据的形状使其匹配replaybuffer中的数据形状
         for name in data:
-            shape = self._replay.dtype[name].shape
+            shape = self._replay.dtype[name].shape  # 获取data中各个键对应的值的形状
             self._replay[name][add_idx] = np.asarray(data[name].reshape(-1, *shape))
         
+        # 保存prev_indices到replaybuffer中
         if prev_indices is not None:
             self._prev[add_idx] = prev_indices[~dones]
 
         return indices
 
     def sample(self, batch_size, rng=default_rng()):
+        
+        """batch_size——采样量, 默认为32"""
+        
+        # 从replaybuffer中无重复随机采样batch_size个样本——获取样本标号
+        # 每个样本代表并行环境中各个图的状态前进一步后的情况
         indices = rng.choice(len(self), size=batch_size, replace=False)
         samples = self._replay[indices]
 
@@ -140,8 +153,9 @@ class ReplayBuffer:
     @property
     def dummy(self):
         shape = (1, self.num_variables, self.num_variables)
+        # 一张图
         graph = GraphsTuple(
-            nodes=np.arange(self.num_variables),
+            nodes=np.arange(self.num_variables),  # (0,1,2,3,4)
             edges=np.zeros((1,), dtype=np.int_),
             senders=np.zeros((1,), dtype=np.int_),
             receivers=np.zeros((1,), dtype=np.int_),
@@ -149,6 +163,7 @@ class ReplayBuffer:
             n_node=np.full((1,), self.num_variables, dtype=np.int_),
             n_edge=np.ones((1,), dtype=np.int_),
         )
+        # 一张图的邻接矩阵
         adjacency = np.zeros(shape, dtype=np.float32)
         return {
             'adjacency': adjacency,
@@ -156,7 +171,7 @@ class ReplayBuffer:
             'num_edges': np.zeros((1,), dtype=np.int_),
             'actions': np.zeros((1,), dtype=np.int_),
             'delta_scores': np.zeros((1,), dtype=np.float_),
-            'mask': np.zeros(shape, dtype=np.float32),
+            'mask': np.zeros(shape, dtype=np.float32), 
             'next_adjacency': adjacency,  # 下一邻接矩阵和当前的相同，因为此处是对replaybuffer进行初始化
             'next_graph': graph,
             'next_mask': np.zeros(shape, dtype=np.float32)
